@@ -1,0 +1,32 @@
+{
+  "name": "mcp-google",
+  "version": "0.1.0",
+  "description": "MCP server exposing Google APIs (Gmail, Calendar, Drive, Sheets, Docs, Tasks, People, and a generic passthrough) over an end-to-end encrypted transport",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "mcp-google": "./dist/server.js",
+    "mcp-google-keygen": "./dist/keygen.js",
+    "mcp-google-oauth-setup": "./dist/oauth-setup.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "keygen": "node dist/keygen.js",
+    "oauth-setup": "node dist/oauth-setup.js",
+    "dev": "tsc -p tsconfig.json --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "googleapis": "^173.0.0",
+    "tweetnacl": "^1.0.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
