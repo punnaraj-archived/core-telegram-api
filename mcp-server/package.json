@@ -1,0 +1,29 @@
+{
+  "name": "telegram-bot-api-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server exposing the Telegram Bot API over an end-to-end encrypted transport",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "telegram-bot-api-mcp-server": "./dist/server.js",
+    "telegram-bot-api-mcp-keygen": "./dist/keygen.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "keygen": "node dist/keygen.js",
+    "dev": "tsc -p tsconfig.json --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "tweetnacl": "^1.0.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
