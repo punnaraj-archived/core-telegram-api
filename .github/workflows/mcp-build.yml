@@ -1,0 +1,43 @@
+name: MCP servers build
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "mcp-server/**"
+      - "mcp-google/**"
+      - ".github/workflows/mcp-build.yml"
+  pull_request:
+    paths:
+      - "mcp-server/**"
+      - "mcp-google/**"
+      - ".github/workflows/mcp-build.yml"
+
+jobs:
+  build:
+    name: Build ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [mcp-server, mcp-google]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: ${{ matrix.package }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.package }}
+        run: npm ci
+
+      - name: Build
+        working-directory: ${{ matrix.package }}
+        run: npm run build
+
+      - name: Audit (moderate+ vulnerabilities)
+        working-directory: ${{ matrix.package }}
+        run: npm audit --audit-level=moderate
