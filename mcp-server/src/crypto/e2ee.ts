@@ -25,12 +25,17 @@ export interface EncryptedEnvelope {
   ciphertext: string;
 }
 
+const DEFAULT_REPLAY_WINDOW = 4096;
+
 export function generateKeyPair(): KeyPair {
   const kp = nacl.box.keyPair();
   return { publicKey: kp.publicKey, secretKey: kp.secretKey };
 }
 
 export function keyPairFromSecretKey(secretKey: Uint8Array): KeyPair {
+  if (secretKey.length !== nacl.box.secretKeyLength) {
+    throw new Error(`Invalid local secret key length: expected ${nacl.box.secretKeyLength} bytes, got ${secretKey.length}`);
+  }
   const kp = nacl.box.keyPair.fromSecretKey(secretKey);
   return { publicKey: kp.publicKey, secretKey: kp.secretKey };
 }
@@ -40,22 +45,45 @@ export function encodeBase64(bytes: Uint8Array): string {
 }
 
 export function decodeBase64(b64: string): Uint8Array {
-  return new Uint8Array(Buffer.from(b64, "base64"));
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(b64) || b64.length % 4 !== 0) {
+    throw new Error("Invalid base64 encoding");
+  }
+  const bytes = new Uint8Array(Buffer.from(b64, "base64"));
+  if (encodeBase64(bytes) !== b64) {
+    throw new Error("Non-canonical base64 encoding");
+  }
+  return bytes;
 }
 
 /**
  * A session bound to exactly one remote peer's public key. The shared secret
  * is precomputed once (nacl.box.before) rather than re-derived per message.
+ *
+ * A bounded replay window remembers recently accepted nonces. This does not
+ * provide forward secrecy, but it prevents a captured valid frame from being
+ * accepted twice during the lifetime of this session.
  */
 export class E2eeSession {
   private readonly sharedKey: Uint8Array;
+  private readonly seenNonces = new Set<string>();
+  private readonly nonceOrder: string[] = [];
 
   constructor(
     private readonly localKeyPair: KeyPair,
     private readonly remotePublicKey: Uint8Array,
+    private readonly replayWindow = DEFAULT_REPLAY_WINDOW,
   ) {
+    if (localKeyPair.publicKey.length !== nacl.box.publicKeyLength) {
+      throw new Error("Invalid local public key length");
+    }
+    if (localKeyPair.secretKey.length !== nacl.box.secretKeyLength) {
+      throw new Error("Invalid local secret key length");
+    }
     if (remotePublicKey.length !== nacl.box.publicKeyLength) {
       throw new Error("Invalid remote public key length");
+    }
+    if (!Number.isSafeInteger(replayWindow) || replayWindow < 1) {
+      throw new Error("Replay window must be a positive safe integer");
     }
     this.sharedKey = nacl.box.before(remotePublicKey, localKeyPair.secretKey);
   }
@@ -76,17 +104,48 @@ export class E2eeSession {
     if (envelope.v !== 1) {
       throw new Error(`Unsupported envelope version: ${String((envelope as { v: unknown }).v)}`);
     }
+
     const senderPublicKey = decodeBase64(envelope.senderPublicKey);
-    if (!constantTimeEqual(senderPublicKey, this.remotePublicKey)) {
+    if (senderPublicKey.length !== nacl.box.publicKeyLength || !constantTimeEqual(senderPublicKey, this.remotePublicKey)) {
       throw new Error("Envelope sender public key does not match the configured peer; refusing to decrypt");
     }
+
     const nonce = decodeBase64(envelope.nonce);
+    if (nonce.length !== nacl.box.nonceLength) {
+      throw new Error(`Invalid nonce length: expected ${nacl.box.nonceLength} bytes, got ${nonce.length}`);
+    }
+    const nonceId = envelope.nonce;
+    if (this.seenNonces.has(nonceId)) {
+      throw new Error("Replay detected: nonce has already been accepted in this session");
+    }
+
     const ciphertext = decodeBase64(envelope.ciphertext);
+    if (ciphertext.length < nacl.box.overheadLength) {
+      throw new Error("Ciphertext is too short to contain an authenticated NaCl box");
+    }
+
     const plaintext = nacl.box.open.after(ciphertext, nonce, this.sharedKey);
     if (plaintext === null) {
       throw new Error("Failed to authenticate/decrypt message: it was tampered with, corrupted, or sealed by the wrong key");
     }
-    return JSON.parse(Buffer.from(plaintext).toString("utf8"));
+
+    // Record only authenticated frames. Invalid frames cannot poison the replay cache.
+    this.rememberNonce(nonceId);
+
+    try {
+      return JSON.parse(Buffer.from(plaintext).toString("utf8"));
+    } catch {
+      throw new Error("Decrypted payload is not valid JSON");
+    }
+  }
+
+  private rememberNonce(nonceId: string): void {
+    this.seenNonces.add(nonceId);
+    this.nonceOrder.push(nonceId);
+    while (this.nonceOrder.length > this.replayWindow) {
+      const oldest = this.nonceOrder.shift();
+      if (oldest !== undefined) this.seenNonces.delete(oldest);
+    }
   }
 }
 
