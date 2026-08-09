@@ -6,6 +6,7 @@ export interface Config {
   telegramToken: string;
   localSecretKey: Uint8Array;
   peerPublicKey: Uint8Array;
+  allowPlaintextTelegramSend: boolean;
 }
 
 function requireEnv(name: string): string {
@@ -40,6 +41,14 @@ function parseBaseUrl(value: string): string {
   return url.toString().replace(/\/$/, "");
 }
 
+function parseBoolean(name: string, defaultValue: boolean): boolean {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) return defaultValue;
+  if (["1", "true", "yes", "on"].includes(raw)) return true;
+  if (["0", "false", "no", "off"].includes(raw)) return false;
+  throw new Error(`${name} must be a boolean value`);
+}
+
 export function loadConfig(): Config {
   const localSecretKey = decodeBase64(requireEnv("MCP_LOCAL_SECRET_KEY"));
   const peerPublicKey = decodeBase64(requireEnv("MCP_PEER_PUBLIC_KEY"));
@@ -56,5 +65,6 @@ export function loadConfig(): Config {
     telegramToken: requireEnv("TELEGRAM_BOT_TOKEN"),
     localSecretKey,
     peerPublicKey,
+    allowPlaintextTelegramSend: parseBoolean("ALLOW_PLAINTEXT_TELEGRAM_MESSAGES", false),
   };
 }
