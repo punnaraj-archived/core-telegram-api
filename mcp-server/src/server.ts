@@ -21,14 +21,18 @@ async function main(): Promise<void> {
     name: "telegram-bot-api-mcp-server",
     version: "0.1.0",
   });
-  registerTelegramTools(server, telegram);
+  registerTelegramTools(server, telegram, session, {
+    allowPlaintextSend: config.allowPlaintextTelegramSend,
+  });
 
   const transport = new EncryptedStdioTransport(session);
-  // McpServer.connect() accepts anything satisfying the SDK's Transport
-  // interface, which EncryptedStdioTransport implements structurally.
   await server.connect(transport as unknown as Parameters<typeof server.connect>[0]);
 
-  process.stderr.write("telegram-bot-api-mcp-server: ready (end-to-end encrypted stdio transport)\n");
+  process.stderr.write(
+    `telegram-bot-api-mcp-server: ready (E2EE MCP transport; Telegram board plaintext send ${
+      config.allowPlaintextTelegramSend ? "ENABLED by explicit compatibility override" : "disabled"
+    })\n`,
+  );
 }
 
 main().catch((err) => {

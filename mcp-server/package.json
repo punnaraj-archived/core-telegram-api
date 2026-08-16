@@ -10,6 +10,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/**/*.test.js",
+    "check": "npm run test",
     "start": "node dist/server.js",
     "keygen": "node dist/keygen.js",
     "dev": "tsc -p tsconfig.json --watch"

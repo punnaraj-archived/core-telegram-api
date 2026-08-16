@@ -15,7 +15,7 @@ on:
 
 jobs:
   build:
-    name: Build ${{ matrix.package }}
+    name: Verify ${{ matrix.package }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -37,6 +37,11 @@ jobs:
       - name: Build
         working-directory: ${{ matrix.package }}
         run: npm run build
+
+      - name: E2EE regression tests
+        if: matrix.package == 'mcp-server'
+        working-directory: mcp-server
+        run: npm test
 
       - name: Audit (moderate+ vulnerabilities)
         working-directory: ${{ matrix.package }}
